@@ -1,0 +1,27 @@
+# Provider-agnostic payment logic for fiducia.cloud: webhook signature
+# verification and event parsing for Stripe and PayPal. Pure library, no HTTP
+# server and no database — the customer backend owns routes and the billing
+# tables (fiducia-interfaces sql/customer.sql); this crate owns the security-
+# critical crypto so it can be unit-tested in isolation and reused.
+[package]
+name = "fiducia-payments"
+version = "0.1.0"
+edition = "2021"
+description = "Stripe + PayPal webhook signature verification and event parsing for fiducia.cloud."
+
+[dependencies]
+# Stripe: HMAC-SHA256 over `{timestamp}.{body}`.
+hmac = "0.12"
+sha2 = "0.10"
+# Constant-time comparison so verification can't be timing-oracled.
+subtle = "2"
+# PayPal: RSA-SHA256 (PKCS1 v1.5) over a CRC32-bound message; cert is X.509 PEM.
+rsa = { version = "0.9", features = ["sha2"] }
+x509-cert = "0.2"
+spki = "0.7"
+crc32fast = "1"
+base64 = "0.22"
+hex = "0.4"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

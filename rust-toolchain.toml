@@ -1,0 +1,4 @@
+# Pins the Rust toolchain so local, CI, and Docker builds match.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]
