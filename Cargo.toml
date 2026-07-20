@@ -20,6 +20,10 @@ rsa = { version = "0.9", features = ["sha2"] }
 x509-cert = "0.2"
 spki = "0.7"
 crc32fast = "1"
+# Robust URL parsing for the PayPal cert-host gate. Hand-splitting the authority
+# is a security bug (userinfo `@`, `\`, `?`, `#` confuse the real host), so the
+# gate must parse exactly like the fetching client does.
+url = "2"
 base64 = "0.22"
 hex = "0.4"
 thiserror = "2"
