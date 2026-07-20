@@ -72,20 +72,35 @@ pub fn signed_message(
 
 /// Reject a cert URL that is not served by PayPal. Without this an attacker could
 /// present a validly-signed message under *their own* cert and pass RSA
-/// verification. Only `*.paypal.com` over HTTPS is accepted.
+/// verification. Only `*.paypal.com` over HTTPS, with no embedded credentials.
 ///
 /// Public so a caller can gate on it BEFORE fetching the certificate — fetching
 /// an attacker-controlled `paypal-cert-url` would be an SSRF. `verify` re-checks
 /// it regardless, as defense in depth.
+///
+/// This MUST parse the URL exactly the way the fetching HTTP client does. An
+/// earlier hand-split on `[':', '/']` was bypassable: `https://api.paypal.com:x@evil.com/`
+/// has authority `api.paypal.com:x@evil.com`, whose real host is `evil.com`
+/// (the part before the port/path is *userinfo*), yet a naive split sees
+/// `api.paypal.com` and passes. Userinfo (`@`), backslashes, `?` and `#` all
+/// terminate or reshape the authority — so we let the `url` crate find the host.
 pub fn cert_url_is_paypal(cert_url: &str) -> bool {
-    // Cheap structural check, no URL crate: must be https and the host label must
-    // be paypal.com or a subdomain of it.
-    let Some(rest) = cert_url.strip_prefix("https://") else {
+    let Ok(url) = url::Url::parse(cert_url) else {
         return false;
     };
-    let host = rest.split(['/', ':']).next().unwrap_or("");
-    let host = host.to_ascii_lowercase();
-    host == "paypal.com" || host.ends_with(".paypal.com")
+    // HTTPS only, and refuse any embedded credentials outright: a URL with
+    // userinfo is never a shape PayPal emits and is the classic host-confusion
+    // vector.
+    if url.scheme() != "https" || !url.username().is_empty() || url.password().is_some() {
+        return false;
+    }
+    match url.host_str() {
+        Some(host) => {
+            let host = host.to_ascii_lowercase();
+            host == "paypal.com" || host.ends_with(".paypal.com")
+        }
+        None => false,
+    }
 }
 
 /// Verify a PayPal webhook and return the authenticated event.
