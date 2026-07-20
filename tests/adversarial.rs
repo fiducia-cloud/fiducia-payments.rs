@@ -182,30 +182,32 @@ fn paypal_rejects_wrong_algo_and_bad_signature_shapes() {
     let good_msg = paypal::signed_message("tid", "ttime", "WH-CFG", body);
     let good_sig = base64::engine::general_purpose::STANDARD.encode(signing.sign(good_msg.as_bytes()).to_bytes());
 
-    let t = |sig: &str, algo: &str| paypal::Transmission {
-        transmission_id: "tid",
-        transmission_time: "ttime",
-        signature_b64: sig,
-        cert_url: "https://api.paypal.com/c.pem",
-        auth_algo: algo,
-    };
+    fn trans<'a>(sig: &'a str, algo: &'a str) -> paypal::Transmission<'a> {
+        paypal::Transmission {
+            transmission_id: "tid",
+            transmission_time: "ttime",
+            signature_b64: sig,
+            cert_url: "https://api.paypal.com/c.pem",
+            auth_algo: algo,
+        }
+    }
 
     // Wrong algorithm => rejected before crypto.
     assert!(matches!(
-        paypal::verify(&t(&good_sig, "SHA1withRSA"), "WH-CFG", body, CERT),
+        paypal::verify(&trans(&good_sig, "SHA1withRSA"), "WH-CFG", body, CERT),
         Err(VerifyError::InvalidInput(_))
     ));
     // Non-base64 signature => malformed, not a panic.
     assert!(matches!(
-        paypal::verify(&t("!!!not base64!!!", "SHA256withRSA"), "WH-CFG", body, CERT),
+        paypal::verify(&trans("!!!not base64!!!", "SHA256withRSA"), "WH-CFG", body, CERT),
         Err(VerifyError::MalformedSignature)
     ));
     // Base64 of the wrong length (not a valid RSA signature) => rejected.
     let junk = base64::engine::general_purpose::STANDARD.encode([0u8; 16]);
-    assert!(paypal::verify(&t(&junk, "SHA256withRSA"), "WH-CFG", body, CERT).is_err());
+    assert!(paypal::verify(&trans(&junk, "SHA256withRSA"), "WH-CFG", body, CERT).is_err());
     // A garbage certificate => InvalidInput, not a panic.
     assert!(matches!(
-        paypal::verify(&t(&good_sig, "SHA256withRSA"), "WH-CFG", body, "-----BEGIN CERTIFICATE-----\nnope\n-----END CERTIFICATE-----"),
+        paypal::verify(&trans(&good_sig, "SHA256withRSA"), "WH-CFG", body, "-----BEGIN CERTIFICATE-----\nnope\n-----END CERTIFICATE-----"),
         Err(VerifyError::InvalidInput(_))
     ));
 }
