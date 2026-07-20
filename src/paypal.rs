@@ -73,7 +73,11 @@ pub fn signed_message(
 /// Reject a cert URL that is not served by PayPal. Without this an attacker could
 /// present a validly-signed message under *their own* cert and pass RSA
 /// verification. Only `*.paypal.com` over HTTPS is accepted.
-fn cert_url_is_paypal(cert_url: &str) -> bool {
+///
+/// Public so a caller can gate on it BEFORE fetching the certificate — fetching
+/// an attacker-controlled `paypal-cert-url` would be an SSRF. `verify` re-checks
+/// it regardless, as defense in depth.
+pub fn cert_url_is_paypal(cert_url: &str) -> bool {
     // Cheap structural check, no URL crate: must be https and the host label must
     // be paypal.com or a subdomain of it.
     let Some(rest) = cert_url.strip_prefix("https://") else {
