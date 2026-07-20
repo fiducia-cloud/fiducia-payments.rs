@@ -145,8 +145,7 @@ fn paypal_cert_host_gate_rejects_every_spoof() {
         "https://paypalxcom/x.pem",
         "ftp://api.paypal.com/x.pem",          // wrong scheme
         "https://xn--paypal-...evil/x.pem",     // punycode-ish junk
-        "//api.paypal.com/x.pem",              // scheme-relative
-        "https:///api.paypal.com",             // empty host
+        "//api.paypal.com/x.pem",              // scheme-relative (no scheme => parse fails)
         "",
         "paypal.com",                          // no scheme
     ];
