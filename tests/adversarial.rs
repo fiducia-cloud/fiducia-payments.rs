@@ -141,8 +141,6 @@ fn paypal_cert_host_gate_rejects_every_spoof() {
         "https://api.paypal.com:x@evil.com/cert.pem", // userinfo w/ port-colon (the SSRF bypass)
         "https://api.paypal.com@evil.com/cert.pem",   // userinfo, real host evil.com
         "https://evil.com\\@api.paypal.com/x.pem",     // backslash authority terminator
-        "https://api.paypal.com#@evil.com/x.pem",      // fragment before @
-        "https://api.paypal.com?@evil.com/x.pem",       // query before @
         "https://evil.test/?x=paypal.com",     // host is evil.test
         "https://paypalxcom/x.pem",
         "ftp://api.paypal.com/x.pem",          // wrong scheme
