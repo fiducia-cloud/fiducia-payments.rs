@@ -139,8 +139,14 @@ mod tests {
     fn accepts_a_valid_fresh_signature() {
         let t = 1_680_000_000;
         let header = sign(BODY, SECRET, t);
-        let event = verify(BODY.as_bytes(), &header, SECRET, t + 10, DEFAULT_TOLERANCE_SECS)
-            .expect("valid signature must verify");
+        let event = verify(
+            BODY.as_bytes(),
+            &header,
+            SECRET,
+            t + 10,
+            DEFAULT_TOLERANCE_SECS,
+        )
+        .expect("valid signature must verify");
         assert_eq!(event.provider, Provider::Stripe);
         assert_eq!(event.id, "evt_123");
         assert_eq!(event.event_type, "invoice.paid");
@@ -151,8 +157,14 @@ mod tests {
         let t = 1_680_000_000;
         let header = sign(BODY, SECRET, t);
         let tampered = r#"{"id":"evt_123","type":"invoice.paid","data":{"amount":999999}}"#;
-        let err = verify(tampered.as_bytes(), &header, SECRET, t, DEFAULT_TOLERANCE_SECS)
-            .unwrap_err();
+        let err = verify(
+            tampered.as_bytes(),
+            &header,
+            SECRET,
+            t,
+            DEFAULT_TOLERANCE_SECS,
+        )
+        .unwrap_err();
         assert!(matches!(err, VerifyError::SignatureMismatch));
     }
 
@@ -160,8 +172,14 @@ mod tests {
     fn rejects_the_wrong_secret() {
         let t = 1_680_000_000;
         let header = sign(BODY, SECRET, t);
-        let err = verify(BODY.as_bytes(), &header, "whsec_attacker", t, DEFAULT_TOLERANCE_SECS)
-            .unwrap_err();
+        let err = verify(
+            BODY.as_bytes(),
+            &header,
+            "whsec_attacker",
+            t,
+            DEFAULT_TOLERANCE_SECS,
+        )
+        .unwrap_err();
         assert!(matches!(err, VerifyError::SignatureMismatch));
     }
 
@@ -170,8 +188,14 @@ mod tests {
         let t = 1_680_000_000;
         let header = sign(BODY, SECRET, t);
         // now is 10 minutes later, tolerance 5 minutes.
-        let err = verify(BODY.as_bytes(), &header, SECRET, t + 600, DEFAULT_TOLERANCE_SECS)
-            .unwrap_err();
+        let err = verify(
+            BODY.as_bytes(),
+            &header,
+            SECRET,
+            t + 600,
+            DEFAULT_TOLERANCE_SECS,
+        )
+        .unwrap_err();
         assert!(matches!(err, VerifyError::TimestampOutOfTolerance { .. }));
     }
 
@@ -180,8 +204,22 @@ mod tests {
         let t = 1_680_000_000;
         let header = sign(BODY, SECRET, t);
         // Clock skew in both directions inside the window verifies.
-        assert!(verify(BODY.as_bytes(), &header, SECRET, t + 299, DEFAULT_TOLERANCE_SECS).is_ok());
-        assert!(verify(BODY.as_bytes(), &header, SECRET, t - 299, DEFAULT_TOLERANCE_SECS).is_ok());
+        assert!(verify(
+            BODY.as_bytes(),
+            &header,
+            SECRET,
+            t + 299,
+            DEFAULT_TOLERANCE_SECS
+        )
+        .is_ok());
+        assert!(verify(
+            BODY.as_bytes(),
+            &header,
+            SECRET,
+            t - 299,
+            DEFAULT_TOLERANCE_SECS
+        )
+        .is_ok());
     }
 
     #[test]
@@ -204,8 +242,14 @@ mod tests {
             VerifyError::MalformedSignature
         ));
         assert!(matches!(
-            verify(BODY.as_bytes(), "t=notanumber,v1=abc", SECRET, 0, DEFAULT_TOLERANCE_SECS)
-                .unwrap_err(),
+            verify(
+                BODY.as_bytes(),
+                "t=notanumber,v1=abc",
+                SECRET,
+                0,
+                DEFAULT_TOLERANCE_SECS
+            )
+            .unwrap_err(),
             VerifyError::MalformedSignature
         ));
     }

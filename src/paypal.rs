@@ -199,8 +199,12 @@ mod tests {
 
     #[test]
     fn cert_host_gate() {
-        assert!(cert_url_is_paypal("https://api.paypal.com/v1/notifications/certs/cert.pem"));
-        assert!(cert_url_is_paypal("https://api.sandbox.paypal.com/certs/x.pem"));
+        assert!(cert_url_is_paypal(
+            "https://api.paypal.com/v1/notifications/certs/cert.pem"
+        ));
+        assert!(cert_url_is_paypal(
+            "https://api.sandbox.paypal.com/certs/x.pem"
+        ));
         assert!(!cert_url_is_paypal("http://api.paypal.com/x.pem")); // not https
         assert!(!cert_url_is_paypal("https://paypal.com.evil.test/x.pem")); // suffix trick
         assert!(!cert_url_is_paypal("https://notpaypal.com/x.pem"));

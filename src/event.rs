@@ -27,7 +27,10 @@ impl VerifiedEvent {
     /// Extract `id` and `type` from a provider event body. Both providers put an
     /// `id` and a `type` at the top level of the JSON, so one extractor serves
     /// both; the caller supplies which `Provider` was verified.
-    pub(crate) fn from_body(provider: Provider, payload: &[u8]) -> Result<Self, crate::VerifyError> {
+    pub(crate) fn from_body(
+        provider: Provider,
+        payload: &[u8],
+    ) -> Result<Self, crate::VerifyError> {
         let value: serde_json::Value = serde_json::from_slice(payload)
             .map_err(|e| crate::VerifyError::MalformedEvent(format!("not JSON: {e}")))?;
         let id = value

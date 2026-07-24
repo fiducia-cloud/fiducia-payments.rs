@@ -36,22 +36,22 @@ fn stripe_header(body: &str, secret: &str, t: i64) -> String {
 #[test]
 fn stripe_malformed_headers_are_rejected_never_panic() {
     let hostile = [
-        "",                                   // empty
-        "garbage",                            // no '='
-        "t=,v1=abc",                          // empty timestamp
-        "t=abc,v1=abc",                       // non-numeric timestamp
-        "t=1",                                // no v1
-        "v1=abc",                             // no timestamp
-        "t=1,v1=",                            // empty v1 value
-        "t=1,,v1=abc",                        // empty segment
-        "t=-1,v1=abc",                        // negative timestamp
-        "t=99999999999999999999999,v1=abc",   // timestamp overflows i64
-        "t=1,v1=zzzz",                        // non-hex v1
-        "t=1,v1=abc,v1=def,v1=",              // trailing empty v1
-        "=1,v1=abc",                          // empty key
-        "t = 1 , v1 = abc",                   // spaces around tokens
-        "\t\n",                               // whitespace only
-        "t=1,v1=616263",                      // valid-shape but wrong signature
+        "",                                 // empty
+        "garbage",                          // no '='
+        "t=,v1=abc",                        // empty timestamp
+        "t=abc,v1=abc",                     // non-numeric timestamp
+        "t=1",                              // no v1
+        "v1=abc",                           // no timestamp
+        "t=1,v1=",                          // empty v1 value
+        "t=1,,v1=abc",                      // empty segment
+        "t=-1,v1=abc",                      // negative timestamp
+        "t=99999999999999999999999,v1=abc", // timestamp overflows i64
+        "t=1,v1=zzzz",                      // non-hex v1
+        "t=1,v1=abc,v1=def,v1=",            // trailing empty v1
+        "=1,v1=abc",                        // empty key
+        "t = 1 , v1 = abc",                 // spaces around tokens
+        "\t\n",                             // whitespace only
+        "t=1,v1=616263",                    // valid-shape but wrong signature
     ];
     for header in hostile {
         let result = stripe::verify(BODY.as_bytes(), header, SECRET, 1, 300);
@@ -90,7 +90,10 @@ fn stripe_signature_of_wrong_length_is_rejected_not_matched() {
 
     // Truncated and over-long hex must never be treated as a match (the
     // constant-time compare is length-guarded).
-    for mutated in [&good_hex[..good_hex.len() - 2], &format!("{good_hex}ab")[..]] {
+    for mutated in [
+        &good_hex[..good_hex.len() - 2],
+        &format!("{good_hex}ab")[..],
+    ] {
         let header = format!("t={t},v1={mutated}");
         assert!(
             matches!(
@@ -129,7 +132,10 @@ fn paypal_cert_host_gate_rejects_every_spoof() {
         "https://a.b.paypal.com/x.pem",
     ];
     for url in allowed {
-        assert!(paypal::cert_url_is_paypal(url), "genuine PayPal host must pass: {url}");
+        assert!(
+            paypal::cert_url_is_paypal(url),
+            "genuine PayPal host must pass: {url}"
+        );
     }
 
     let spoofs = [
@@ -137,17 +143,17 @@ fn paypal_cert_host_gate_rejects_every_spoof() {
         "https://paypal.com.evil.test/x.pem", // suffix trick
         "https://notpaypal.com/x.pem",        // substring, not subdomain
         "https://evilpaypal.com/x.pem",
-        "https://paypal.com@evil.test/x.pem",  // userinfo authority trick
+        "https://paypal.com@evil.test/x.pem", // userinfo authority trick
         "https://api.paypal.com:x@evil.com/cert.pem", // userinfo w/ port-colon (the SSRF bypass)
-        "https://api.paypal.com@evil.com/cert.pem",   // userinfo, real host evil.com
-        "https://evil.com\\@api.paypal.com/x.pem",     // backslash authority terminator
-        "https://evil.test/?x=paypal.com",     // host is evil.test
+        "https://api.paypal.com@evil.com/cert.pem", // userinfo, real host evil.com
+        "https://evil.com\\@api.paypal.com/x.pem", // backslash authority terminator
+        "https://evil.test/?x=paypal.com",    // host is evil.test
         "https://paypalxcom/x.pem",
-        "ftp://api.paypal.com/x.pem",          // wrong scheme
-        "https://xn--paypal-...evil/x.pem",     // punycode-ish junk
-        "//api.paypal.com/x.pem",              // scheme-relative (no scheme => parse fails)
+        "ftp://api.paypal.com/x.pem",       // wrong scheme
+        "https://xn--paypal-...evil/x.pem", // punycode-ish junk
+        "//api.paypal.com/x.pem",           // scheme-relative (no scheme => parse fails)
         "",
-        "paypal.com",                          // no scheme
+        "paypal.com", // no scheme
     ];
     for url in spoofs {
         assert!(
@@ -177,7 +183,8 @@ fn paypal_rejects_wrong_algo_and_bad_signature_shapes() {
     let signing = SigningKey::<Sha256>::new(RsaPrivateKey::from_pkcs8_pem(KEY).unwrap());
     let body = br#"{"id":"WH-1","event_type":"PAYMENT.CAPTURE.COMPLETED"}"#;
     let good_msg = paypal::signed_message("tid", "ttime", "WH-CFG", body);
-    let good_sig = base64::engine::general_purpose::STANDARD.encode(signing.sign(good_msg.as_bytes()).to_bytes());
+    let good_sig = base64::engine::general_purpose::STANDARD
+        .encode(signing.sign(good_msg.as_bytes()).to_bytes());
 
     fn trans<'a>(sig: &'a str, algo: &'a str) -> paypal::Transmission<'a> {
         paypal::Transmission {
@@ -196,7 +203,12 @@ fn paypal_rejects_wrong_algo_and_bad_signature_shapes() {
     ));
     // Non-base64 signature => malformed, not a panic.
     assert!(matches!(
-        paypal::verify(&trans("!!!not base64!!!", "SHA256withRSA"), "WH-CFG", body, CERT),
+        paypal::verify(
+            &trans("!!!not base64!!!", "SHA256withRSA"),
+            "WH-CFG",
+            body,
+            CERT
+        ),
         Err(VerifyError::MalformedSignature)
     ));
     // Base64 of the wrong length (not a valid RSA signature) => rejected.
@@ -204,7 +216,12 @@ fn paypal_rejects_wrong_algo_and_bad_signature_shapes() {
     assert!(paypal::verify(&trans(&junk, "SHA256withRSA"), "WH-CFG", body, CERT).is_err());
     // A garbage certificate => InvalidInput, not a panic.
     assert!(matches!(
-        paypal::verify(&trans(&good_sig, "SHA256withRSA"), "WH-CFG", body, "-----BEGIN CERTIFICATE-----\nnope\n-----END CERTIFICATE-----"),
+        paypal::verify(
+            &trans(&good_sig, "SHA256withRSA"),
+            "WH-CFG",
+            body,
+            "-----BEGIN CERTIFICATE-----\nnope\n-----END CERTIFICATE-----"
+        ),
         Err(VerifyError::InvalidInput(_))
     ));
 }
@@ -229,7 +246,10 @@ fn provider_parsing_is_total_and_case_insensitive() {
         if bad.trim().eq_ignore_ascii_case("stripe") || bad.trim().eq_ignore_ascii_case("paypal") {
             continue;
         }
-        assert!(bad.parse::<Provider>().is_err(), "unknown provider {bad:?} must fail closed");
+        assert!(
+            bad.parse::<Provider>().is_err(),
+            "unknown provider {bad:?} must fail closed"
+        );
     }
     // The DB string round-trips.
     assert_eq!(Provider::Stripe.as_str(), "stripe");
