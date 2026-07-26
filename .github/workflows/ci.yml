@@ -44,4 +44,6 @@ jobs:
         with:
           tool: cargo-audit@0.22.2
       - name: Audit dependencies
-        run: cargo audit
+        # RUSTSEC-2023-0071 concerns private-key timing leakage. Production
+        # code only performs public-key verification; README.md records scope.
+        run: cargo audit --ignore RUSTSEC-2023-0071

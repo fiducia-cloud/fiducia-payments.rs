@@ -47,6 +47,15 @@ pin it). This crate deliberately does not make network calls. Certificate
 *chain* validation to PayPal's CA is likewise the caller's concern; the host
 gate + RSA verification are what this crate guarantees.
 
+The `rsa` crate currently carries
+[RUSTSEC-2023-0071](https://rustsec.org/advisories/RUSTSEC-2023-0071.html),
+which has no patched release and concerns timing leakage of private keys.
+Production code constructs only `RsaPublicKey` and performs verification; the
+only private-key operation signs test fixtures offline with an embedded,
+non-secret key. CI therefore ignores exactly that advisory ID while continuing
+to fail on every other advisory. Adding private-key or decryption behavior
+requires replacing the dependency and removing the exception first.
+
 ## Idempotent processing
 
 `VerifiedEvent.id` maps to `billing_webhook_events.provider_event_id`, whose
