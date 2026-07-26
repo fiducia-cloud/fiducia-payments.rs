@@ -10,7 +10,7 @@
 //! The signed payload is the literal `"{t}.{raw_body}"`, HMAC-SHA256'd with the
 //! secret; the hex digest must equal one of the `v1` values. We also bound `t`
 //! against the caller-supplied current time so a captured-but-old event cannot
-//! be replayed. Reference: https://docs.stripe.com/webhooks/signature
+//! be replayed. Reference: <https://docs.stripe.com/webhooks/signature>
 //!
 //! `verify` takes `now_unix` explicitly rather than reading the clock, so the
 //! logic is deterministic and unit-testable and has no ambient time dependency.

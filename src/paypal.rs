@@ -20,7 +20,7 @@
 //! and `webhook_id` is the id PayPal assigned this endpoint (server config, NOT
 //! from the request). Verification is RSA-SHA256 (PKCS#1 v1.5) of that message
 //! against the public key in the certificate at `paypal-cert-url`.
-//! Reference: https://developer.paypal.com/api/rest/webhooks/rest/#verify-webhook-signature-manually
+//! Reference: <https://developer.paypal.com/api/rest/webhooks/rest/#verify-webhook-signature-manually>
 //!
 //! Fetching the certificate is a network operation and therefore the caller's
 //! job (it should also cache and pin it); this module owns the two things that
