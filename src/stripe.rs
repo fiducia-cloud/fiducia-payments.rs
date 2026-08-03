@@ -267,14 +267,7 @@ mod tests {
     fn extreme_timestamp_skew_is_overflow_safe() {
         let header = sign(BODY, SECRET, i64::MIN);
 
-        let err = verify(
-            BODY.as_bytes(),
-            &header,
-            SECRET,
-            i64::MAX,
-            u64::MAX - 1,
-        )
-        .unwrap_err();
+        let err = verify(BODY.as_bytes(), &header, SECRET, i64::MAX, u64::MAX - 1).unwrap_err();
         assert!(matches!(
             err,
             VerifyError::TimestampOutOfTolerance {
@@ -286,14 +279,7 @@ mod tests {
         // The mathematical difference between i64::MIN and i64::MAX is exactly
         // u64::MAX. A caller explicitly allowing that full range should verify,
         // proving the widened comparison does not merely saturate before deciding.
-        assert!(verify(
-            BODY.as_bytes(),
-            &header,
-            SECRET,
-            i64::MAX,
-            u64::MAX,
-        )
-        .is_ok());
+        assert!(verify(BODY.as_bytes(), &header, SECRET, i64::MAX, u64::MAX,).is_ok());
     }
 
     #[test]
@@ -316,13 +302,7 @@ mod tests {
             format!("t={t},t={},{}", t + 1, signatures),
         ] {
             assert!(matches!(
-                verify(
-                    BODY.as_bytes(),
-                    &header,
-                    SECRET,
-                    t,
-                    DEFAULT_TOLERANCE_SECS,
-                ),
+                verify(BODY.as_bytes(), &header, SECRET, t, DEFAULT_TOLERANCE_SECS,),
                 Err(VerifyError::MalformedSignature)
             ));
         }
