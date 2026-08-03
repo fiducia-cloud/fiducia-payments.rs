@@ -52,11 +52,23 @@ pub fn verify(
 
     // Replay window first: a fresh forgery and a stale replay are both rejected,
     // but ordering the cheap timestamp check before the HMAC avoids doing crypto
-    // for an obviously-stale request.
-    let skew = now_unix - timestamp;
-    if skew.unsigned_abs() > tolerance_secs {
+    // for an obviously-stale request. Widen before subtracting: two valid i64
+    // timestamps can differ by u64::MAX seconds, which would overflow i64 and
+    // either panic in debug builds or wrap in optimized builds.
+    let skew = i128::from(now_unix) - i128::from(timestamp);
+    if skew.unsigned_abs() > u128::from(tolerance_secs) {
+        // The public error keeps an i64 for compatibility. Saturation preserves
+        // direction for logging while the widened value above remains the source
+        // of truth for the security decision.
+        let skew_secs = i64::try_from(skew).unwrap_or_else(|_| {
+            if skew.is_negative() {
+                i64::MIN
+            } else {
+                i64::MAX
+            }
+        });
         return Err(VerifyError::TimestampOutOfTolerance {
-            skew_secs: skew,
+            skew_secs,
             tolerance_secs,
         });
     }
@@ -87,7 +99,9 @@ pub fn verify(
 
 /// Pull `t` and every `v1=` value out of a `Stripe-Signature` header. Unknown
 /// schemes (`v0`, future `vN`) are ignored; a missing `t` or zero `v1` values is
-/// a malformed header.
+/// a malformed header. More than one `t` is also malformed: accepting an
+/// ambiguous timestamp lets intermediaries and verifiers disagree about which
+/// replay window and signed payload apply.
 fn parse_signature_header(header: &str) -> Result<(i64, Vec<String>), VerifyError> {
     if header.trim().is_empty() {
         return Err(VerifyError::MissingSignature);
@@ -100,6 +114,9 @@ fn parse_signature_header(header: &str) -> Result<(i64, Vec<String>), VerifyErro
             .ok_or(VerifyError::MalformedSignature)?;
         match key.trim() {
             "t" => {
+                if timestamp.is_some() {
+                    return Err(VerifyError::MalformedSignature);
+                }
                 timestamp = Some(
                     value
                         .trim()
@@ -223,12 +240,72 @@ mod tests {
     }
 
     #[test]
+    fn tolerance_boundary_is_inclusive() {
+        let t = 1_680_000_000;
+        let header = sign(BODY, SECRET, t);
+        assert!(verify(
+            BODY.as_bytes(),
+            &header,
+            SECRET,
+            t + DEFAULT_TOLERANCE_SECS as i64,
+            DEFAULT_TOLERANCE_SECS,
+        )
+        .is_ok());
+        assert!(matches!(
+            verify(
+                BODY.as_bytes(),
+                &header,
+                SECRET,
+                t + DEFAULT_TOLERANCE_SECS as i64 + 1,
+                DEFAULT_TOLERANCE_SECS,
+            ),
+            Err(VerifyError::TimestampOutOfTolerance { .. })
+        ));
+    }
+
+    #[test]
+    fn extreme_timestamp_skew_is_overflow_safe() {
+        let header = sign(BODY, SECRET, i64::MIN);
+
+        let err = verify(BODY.as_bytes(), &header, SECRET, i64::MAX, u64::MAX - 1).unwrap_err();
+        assert!(matches!(
+            err,
+            VerifyError::TimestampOutOfTolerance {
+                skew_secs: i64::MAX,
+                tolerance_secs,
+            } if tolerance_secs == u64::MAX - 1
+        ));
+
+        // The mathematical difference between i64::MIN and i64::MAX is exactly
+        // u64::MAX. A caller explicitly allowing that full range should verify,
+        // proving the widened comparison does not merely saturate before deciding.
+        assert!(verify(BODY.as_bytes(), &header, SECRET, i64::MAX, u64::MAX,).is_ok());
+    }
+
+    #[test]
     fn accepts_when_one_of_several_v1_values_matches_rotation() {
         let t = 1_680_000_000;
         let good = sign(BODY, SECRET, t);
         // Prepend a bogus v1 (secret rotation leaves two live signatures).
         let header = format!("t={t},v1=deadbeef,{}", good.split_once(',').unwrap().1);
         assert!(verify(BODY.as_bytes(), &header, SECRET, t, DEFAULT_TOLERANCE_SECS).is_ok());
+    }
+
+    #[test]
+    fn rejects_ambiguous_duplicate_timestamps() {
+        let t = 1_680_000_000;
+        let good = sign(BODY, SECRET, t);
+        let signatures = good.split_once(',').unwrap().1;
+
+        for header in [
+            format!("t={t},t={t},{signatures}"),
+            format!("t={t},t={},{}", t + 1, signatures),
+        ] {
+            assert!(matches!(
+                verify(BODY.as_bytes(), &header, SECRET, t, DEFAULT_TOLERANCE_SECS,),
+                Err(VerifyError::MalformedSignature)
+            ));
+        }
     }
 
     #[test]
