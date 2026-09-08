@@ -4,16 +4,24 @@
 
 use crate::provider::Provider;
 
-/// A webhook whose signature has been verified. The only way to obtain one is
-/// through a verifier, so holding a `VerifiedEvent` is proof the bytes are
-/// authentic and fresh — the type makes "did you check the signature?"
-/// unrepresentable-if-forgotten.
+/// A webhook whose provider-specific signature verification succeeded. The only
+/// way to obtain one is through a verifier, so holding a `VerifiedEvent` proves
+/// that the exact bytes in [`Self::payload`] passed that provider's configured
+/// authentication checks.
+///
+/// Stripe verification also enforces the caller-supplied replay-tolerance
+/// window. The current PayPal verifier cryptographically binds
+/// `transmission_time` but does not yet parse or age-check it; that distinct
+/// freshness hardening is tracked in issue #9. Callers must additionally apply
+/// durable provider-event identity plus payload-digest idempotency before
+/// causing billing effects.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedEvent {
     pub provider: Provider,
     /// The provider's unique event id (Stripe `evt_…`, PayPal `WH-…`). Maps to
-    /// `billing_webhook_events.provider_event_id`; the unique index there makes
-    /// processing idempotent under provider redelivery.
+    /// `billing_webhook_events.provider_event_id`; the downstream ledger uses
+    /// it together with provider identity and the authenticated payload digest
+    /// to distinguish an identical redelivery from conflicting identity reuse.
     pub id: String,
     /// The provider event type (`invoice.paid`, `PAYMENT.CAPTURE.COMPLETED`, …).
     pub event_type: String,
