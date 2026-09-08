@@ -1,0 +1,162 @@
+name: formal-provider-verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/formal-provider-verification.yml'
+      - 'formal/**'
+      - 'src/event.rs'
+      - 'src/paypal.rs'
+      - 'src/stripe.rs'
+      - 'tests/formal_verifier_refinement.rs'
+  pull_request:
+    paths:
+      - '.github/workflows/formal-provider-verification.yml'
+      - 'formal/**'
+      - 'src/event.rs'
+      - 'src/paypal.rs'
+      - 'src/stripe.rs'
+      - 'tests/formal_verifier_refinement.rs'
+  schedule:
+    - cron: '17 7 * * 3'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: formal-provider-verification-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  QUINT_PACKAGE: '@informalsystems/quint@0.32.0'
+
+jobs:
+  model-and-refinement:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate workflow
+        uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+        with:
+          args: .github/workflows/formal-provider-verification.yml
+
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Pin and report Quint
+        run: |
+          set -euo pipefail
+          npx --yes --package="$QUINT_PACKAGE" quint --version
+
+      - name: Typecheck model and traces
+        run: |
+          set -euo pipefail
+          mkdir -p .formal-artifacts
+          npx --yes --package="$QUINT_PACKAGE" quint typecheck \
+            formal/provider_verification.qnt \
+            2>&1 | tee .formal-artifacts/typecheck-model.log
+          npx --yes --package="$QUINT_PACKAGE" quint typecheck \
+            formal/provider_verification_test.qnt \
+            2>&1 | tee .formal-artifacts/typecheck-test.log
+
+      - name: Run deterministic verifier traces
+        run: |
+          set -euo pipefail
+          npx --yes --package="$QUINT_PACKAGE" quint test \
+            formal/provider_verification_test.qnt \
+            --main=provider_verification_test \
+            --match='.*Test$' \
+            --out-itf='.formal-artifacts/test-{test}-{seq}.itf.json' \
+            2>&1 | tee .formal-artifacts/quint-test.log
+
+      - name: Simulate bounded verifier schedules
+        run: |
+          set -euo pipefail
+          npx --yes --package="$QUINT_PACKAGE" quint run \
+            formal/provider_verification.qnt \
+            --main=provider_verification \
+            --max-samples=10000 \
+            --max-steps=16 \
+            --invariant=authentication_safety \
+            --witnesses \
+              stripe_verified \
+              paypal_verified \
+              rejection_reached \
+              consumption_reached \
+            2>&1 | tee .formal-artifacts/quint-run.log
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Check production refinement
+        run: |
+          set -euo pipefail
+          cargo fmt --all -- --check
+          cargo test --locked --test formal_verifier_refinement
+
+      - name: Retain formal evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: provider-verification-formal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .formal-artifacts/
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
+
+  bounded-verification:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Install Java for Apalache
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Exhaustively check the bounded verifier
+        run: |
+          set -euo pipefail
+          mkdir -p .formal-artifacts
+          npx --yes --package="$QUINT_PACKAGE" quint verify \
+            formal/provider_verification.qnt \
+            --main=provider_verification \
+            --max-steps=8 \
+            --invariant=authentication_safety \
+            --out-itf='.formal-artifacts/counterexample-{seq}.itf.json' \
+            2>&1 | tee .formal-artifacts/quint-verify.log
+
+      - name: Retain bounded-verification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: provider-verification-bounded-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .formal-artifacts/
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
