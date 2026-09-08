@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/formal-provider-verification.yml'
+      - '.github/workflows/secrets-audit.yml'
       - 'formal/**'
       - 'src/event.rs'
       - 'src/paypal.rs'
@@ -13,6 +14,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/formal-provider-verification.yml'
+      - '.github/workflows/secrets-audit.yml'
       - 'formal/**'
       - 'src/event.rs'
       - 'src/paypal.rs'
