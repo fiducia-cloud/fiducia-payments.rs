@@ -22,8 +22,7 @@ const STRIPE_VALID_BODY: &[u8] = br#"{"id":"evt_formal","type":"invoice.paid"}"#
 const STRIPE_INVALID_EVENT_BODY: &[u8] = br#"{"id":"evt_formal"}"#;
 
 const PAYPAL_WEBHOOK_ID: &str = "WH-FORMAL";
-const PAYPAL_VALID_BODY: &[u8] =
-    br#"{"id":"WH-formal","event_type":"PAYMENT.CAPTURE.COMPLETED"}"#;
+const PAYPAL_VALID_BODY: &[u8] = br#"{"id":"WH-formal","event_type":"PAYMENT.CAPTURE.COMPLETED"}"#;
 const PAYPAL_INVALID_EVENT_BODY: &[u8] = br#"{"id":"WH-formal"}"#;
 const PAYPAL_CERT_PEM: &str = include_str!("fixtures/paypal_test_cert.pem");
 const PAYPAL_KEY_PEM: &str = include_str!("fixtures/paypal_test_key.pem");
@@ -40,8 +39,7 @@ fn stripe_header(body: &[u8], secret: &str, timestamp: i64) -> String {
 }
 
 fn paypal_signature(body: &[u8], webhook_id: &str) -> String {
-    let private =
-        RsaPrivateKey::from_pkcs8_pem(PAYPAL_KEY_PEM).expect("load non-secret test key");
+    let private = RsaPrivateKey::from_pkcs8_pem(PAYPAL_KEY_PEM).expect("load non-secret test key");
     let signing = SigningKey::<Sha256>::new(private);
     let message = paypal::signed_message(
         "transmission-formal",
@@ -49,8 +47,7 @@ fn paypal_signature(body: &[u8], webhook_id: &str) -> String {
         webhook_id,
         body,
     );
-    base64::engine::general_purpose::STANDARD
-        .encode(signing.sign(message.as_bytes()).to_bytes())
+    base64::engine::general_purpose::STANDARD.encode(signing.sign(message.as_bytes()).to_bytes())
 }
 
 #[test]
@@ -90,13 +87,7 @@ fn stripe_refines_all_five_authentication_gates() {
             STRIPE_TIMESTAMP + STRIPE_TOLERANCE as i64 + 1
         };
 
-        let result = stripe::verify(
-            body,
-            &header,
-            verification_secret,
-            now,
-            STRIPE_TOLERANCE,
-        );
+        let result = stripe::verify(body, &header, verification_secret, now, STRIPE_TOLERANCE);
         assert_eq!(
             result.is_ok(),
             mask == ALL_VALID,
