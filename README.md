@@ -12,7 +12,7 @@ unit-tested with no network, no clock, and no Postgres.
 ## Why signature verification is the load-bearing part
 
 A payments webhook endpoint is an unauthenticated, internet-facing POST that
-mutates billing state. If the signature isn't verified, anyone can forge
+mutates billing state. If the signature is not verified, anyone can forge
 "invoice paid" / "subscription active" events. Both providers sign their
 webhooks; this crate does nothing else until that signature checks out, and the
 only way to obtain a `VerifiedEvent` is through a verifier — so "did we check
@@ -47,6 +47,13 @@ pin it). This crate deliberately does not make network calls. Certificate
 *chain* validation to PayPal's CA is likewise the caller's concern; the host
 gate + RSA verification are what this crate guarantees.
 
+The current PayPal verifier cryptographically binds `transmission_time`, but it
+does not parse that timestamp or enforce a replay-tolerance window. Therefore a
+successful PayPal `VerifiedEvent` proves authentication of the exact bytes, not
+age freshness. Issue #9 tracks a backward-compatible injected-time verifier and
+strict timestamp handling. Do not replace downstream idempotency with that
+future freshness check; both controls are required at different boundaries.
+
 The `rsa` crate currently carries
 [RUSTSEC-2023-0071](https://rustsec.org/advisories/RUSTSEC-2023-0071.html),
 which has no patched release and concerns timing leakage of private keys.
@@ -58,11 +65,29 @@ requires replacing the dependency and removing the exception first.
 
 ## Idempotent processing
 
-`VerifiedEvent.id` maps to `billing_webhook_events.provider_event_id`, whose
-unique `(provider, provider_event_id)` index makes processing idempotent under a
-provider's at-least-once redelivery: `INSERT … ON CONFLICT DO NOTHING`, then
-process only the row you actually inserted. Store `signature_verified = true`
-and `payload_sha256` of the verified bytes as the audit of the trust decision.
+`VerifiedEvent.id` maps to `billing_webhook_events.provider_event_id`. The
+customer backend durably keys an accepted event by provider plus provider event
+identity and records the SHA-256 digest of `VerifiedEvent.payload`.
+
+An identical authenticated redelivery is a no-op. Reuse of the same provider
+event identity with a different authenticated payload digest or event type is a
+conflict and must not cause a billing effect. Hash and parse only the exact
+verified payload bytes, never a separately re-read or reserialized request
+body.
+
+## Formal verification
+
+`formal/provider_verification.qnt` models the provider-authentication lifecycle
+from untrusted receipt through verified/rejected verdicts and one logical
+consumer acceptance. The pinned CI gate typechecks deterministic traces,
+explores 10,000 bounded schedules, checks the model invariant with Apalache on
+main/scheduled runs, and refines all 32 combinations of five authentication
+gates for both Stripe and PayPal against the real Rust/HMAC/RSA implementation.
+
+This crate contains no balance, price, refund, credit, invoice-total, currency
+conversion, or ledger arithmetic. Exact money conservation belongs in the
+billing and ledger components that apply authenticated provider events; the
+Quaestor executor maintains the dedicated money refinement.
 
 ## Testing
 
