@@ -1,0 +1,17 @@
+name: Formal wave 3
+on:
+  pull_request:
+    paths: ['conformance/**', '.github/workflows/formal-wave3.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  bounded-model-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - name: Compile bounded payment lifecycle model
+        run: rustc --edition=2024 -D warnings conformance/payment_lifecycle_model.rs -o "$RUNNER_TEMP/payment-lifecycle-model"
+      - name: Execute bounded payment lifecycle model
+        run: "$RUNNER_TEMP/payment-lifecycle-model"
