@@ -44,7 +44,7 @@ fn check(timestamp: &str, now: i64, tolerance: u64) -> Result<(), VerifyError> {
     ).map(|event| {
         assert_eq!(event.provider, Provider::Paypal);
         assert_eq!(event.id, "WH-fresh");
-        assert_eq!(event.payload, BODY);
+        assert_eq!(event.payload.as_slice(), BODY);
     })
 }
 
@@ -163,7 +163,7 @@ fn sixty_four_signed_refinements_require_all_six_authentication_gates() {
         );
         if let Ok(event) = result {
             assert_eq!(event.provider, Provider::Paypal);
-            assert_eq!(event.payload, BODY);
+            assert_eq!(event.payload.as_slice(), BODY);
         }
     }
 }
