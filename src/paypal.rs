@@ -177,7 +177,7 @@ pub fn verify_at(
     if skew_nanos.unsigned_abs() > u128::from(tolerance_secs) * 1_000_000_000 {
         // Round away from zero for useful diagnostics (a 300.001 second
         // mismatch must never be logged as within the 300 second window).
-        let whole_secs = (skew_nanos.unsigned_abs() + 999_999_999) / 1_000_000_000;
+        let whole_secs = skew_nanos.unsigned_abs().div_ceil(1_000_000_000);
         let skew_secs = if skew_nanos < 0 {
             i64::try_from(whole_secs).map_or(i64::MIN, |value| -value)
         } else {
