@@ -1,6 +1,7 @@
 //! One error type for both providers' verification paths. Every variant is a
 //! REJECTION — a verifier returns `Ok(VerifiedEvent)` only when the signature is
-//! valid and fresh, so a caller can treat any `Err` as "do not trust this body".
+//! authentic; replay-window freshness requires Stripe verification or PayPal's
+//! `verify_at`, so a caller can treat any `Err` as "do not trust this body".
 
 /// Why a webhook failed verification. Deliberately coarse in its public
 /// `Display` (an attacker probing the endpoint learns only "rejected"), while

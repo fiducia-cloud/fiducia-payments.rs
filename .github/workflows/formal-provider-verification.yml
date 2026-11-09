@@ -9,6 +9,8 @@ on:
       - 'formal/**'
       - 'src/event.rs'
       - 'src/paypal.rs'
+      - 'src/paypal_timestamp.rs'
+      - 'tests/paypal_freshness.rs'
       - 'src/stripe.rs'
       - 'tests/formal_verifier_refinement.rs'
   pull_request:
@@ -18,6 +20,8 @@ on:
       - 'formal/**'
       - 'src/event.rs'
       - 'src/paypal.rs'
+      - 'src/paypal_timestamp.rs'
+      - 'tests/paypal_freshness.rs'
       - 'src/stripe.rs'
       - 'tests/formal_verifier_refinement.rs'
   schedule:
@@ -70,6 +74,9 @@ jobs:
           npx --yes --package="$QUINT_PACKAGE" quint typecheck \
             formal/provider_verification_test.qnt \
             2>&1 | tee .formal-artifacts/typecheck-test.log
+          npx --yes --package="$QUINT_PACKAGE" quint typecheck \
+            formal/paypal_freshness.qnt \
+            2>&1 | tee .formal-artifacts/typecheck-paypal-freshness.log
 
       - name: Run deterministic verifier traces
         run: |
@@ -96,6 +103,14 @@ jobs:
               rejection_reached \
               consumption_reached \
             2>&1 | tee .formal-artifacts/quint-run.log
+          npx --yes --package="$QUINT_PACKAGE" quint run \
+            formal/paypal_freshness.qnt \
+            --main=paypal_freshness \
+            --max-samples=10000 \
+            --max-steps=16 \
+            --invariant=authentication_and_freshness_safety \
+            --witnesses verified_reached rejection_reached consumption_reached \
+            2>&1 | tee .formal-artifacts/quint-paypal-freshness-run.log
 
       - name: Install pinned Rust toolchain
         uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
@@ -108,6 +123,7 @@ jobs:
           set -euo pipefail
           cargo fmt --all -- --check
           cargo test --locked --test formal_verifier_refinement
+          cargo test --locked --test paypal_freshness
 
       - name: Retain formal evidence
         if: always()

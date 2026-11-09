@@ -17,6 +17,7 @@
 
 mod error;
 mod event;
+mod paypal_timestamp;
 mod provider;
 
 pub mod paypal;

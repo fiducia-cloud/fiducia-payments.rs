@@ -103,7 +103,8 @@ pub fn cert_url_is_paypal(cert_url: &str) -> bool {
     }
 }
 
-/// Verify a PayPal webhook and return the authenticated event.
+/// Legacy signature-only PayPal verification (does NOT enforce time freshness).
+/// Prefer verify_at for new callers handling untrusted webhooks.
 ///
 /// * `t`         — the transmission headers.
 /// * `webhook_id`— the endpoint's PayPal webhook id (server config).
@@ -149,6 +150,48 @@ pub fn verify(
         .map_err(|_| VerifyError::SignatureMismatch)?;
 
     VerifiedEvent::from_body(Provider::Paypal, raw_body)
+}
+
+/// Default inclusive replay tolerance for PayPal webhooks (five minutes).
+/// A verified event is not a substitute for durable event-id idempotency.
+pub const DEFAULT_TOLERANCE_SECS: u64 = 300;
+
+/// Verify the PayPal signature AND its signed RFC3339 timestamp against an
+/// injected clock. Unlike the legacy verify() API, this guarantees that the
+/// authenticated transmission time is within the supplied replay window.
+///
+/// Supports UTC Z or an explicit numeric offset and at most nanosecond
+/// precision. Calendar-invalid, ambiguous, overflowing and zone-less input
+/// fails closed. Fractional seconds are included in the exact comparison.
+pub fn verify_at(
+    t: &Transmission<'_>,
+    webhook_id: &str,
+    raw_body: &[u8],
+    cert_pem: &str,
+    now_unix: i64,
+    tolerance_secs: u64,
+) -> Result<VerifiedEvent, VerifyError> {
+    let transmitted_nanos = crate::paypal_timestamp::parse_rfc3339_unix_nanos(t.transmission_time)
+        .ok_or_else(|| VerifyError::InvalidInput("malformed PayPal transmission time".into()))?;
+    let skew_nanos = i128::from(now_unix) * 1_000_000_000 - transmitted_nanos;
+    if skew_nanos.unsigned_abs() > u128::from(tolerance_secs) * 1_000_000_000 {
+        // Round away from zero for useful diagnostics (a 300.001 second
+        // mismatch must never be logged as within the 300 second window).
+        let whole_secs = skew_nanos.unsigned_abs().div_ceil(1_000_000_000);
+        let skew_secs = if skew_nanos < 0 {
+            i64::try_from(whole_secs).map_or(i64::MIN, |value| -value)
+        } else {
+            i64::try_from(whole_secs).unwrap_or(i64::MAX)
+        };
+        return Err(VerifyError::TimestampOutOfTolerance {
+            skew_secs,
+            tolerance_secs,
+        });
+    }
+    // The legacy verifier still validates cert origin, algorithm, configured
+    // webhook id, RSA signature, and the precise raw request body. Do not
+    // normalize transmission_time before signature verification.
+    verify(t, webhook_id, raw_body, cert_pem)
 }
 
 /// Extract the RSA public key from a PEM X.509 certificate.
