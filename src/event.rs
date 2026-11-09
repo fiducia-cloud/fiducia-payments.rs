@@ -9,10 +9,10 @@ use crate::provider::Provider;
 /// that the exact bytes in [`Self::payload`] passed that provider's configured
 /// authentication checks.
 ///
-/// Stripe verification also enforces the caller-supplied replay-tolerance
-/// window. The current PayPal verifier cryptographically binds
-/// `transmission_time` but does not yet parse or age-check it; that distinct
-/// freshness hardening is tracked in issue #9. Callers must additionally apply
+/// Stripe verification and PayPal `verify_at` also enforce the supplied
+/// replay-tolerance window. Legacy PayPal `verify` cryptographically binds
+/// `transmission_time` but does not parse or age-check it; consumers should
+/// migrate to `verify_at` after their compatibility audit. Callers must additionally apply
 /// durable provider-event identity plus payload-digest idempotency before
 /// causing billing effects.
 #[derive(Debug, Clone, PartialEq, Eq)]
