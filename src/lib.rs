@@ -17,8 +17,8 @@
 
 mod error;
 mod event;
-mod provider;
 mod paypal_timestamp;
+mod provider;
 
 pub mod paypal;
 pub mod stripe;
