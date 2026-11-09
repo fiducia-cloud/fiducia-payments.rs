@@ -47,12 +47,19 @@ pin it). This crate deliberately does not make network calls. Certificate
 *chain* validation to PayPal's CA is likewise the caller's concern; the host
 gate + RSA verification are what this crate guarantees.
 
-The current PayPal verifier cryptographically binds `transmission_time`, but it
-does not parse that timestamp or enforce a replay-tolerance window. Therefore a
-successful PayPal `VerifiedEvent` proves authentication of the exact bytes, not
-age freshness. Issue #9 tracks a backward-compatible injected-time verifier and
-strict timestamp handling. Do not replace downstream idempotency with that
-future freshness check; both controls are required at different boundaries.
+For untrusted HTTP webhook handling, use `paypal::verify_at(transmission, webhook_id,
+raw_body, cert_pem, now_unix, paypal::DEFAULT_TOLERANCE_SECS)`. It verifies the
+real RSA/X.509 signature and enforces a strict RFC3339 replay window with exact
+fractional-second inclusive boundaries, explicit UTC offset, and a caller-injected
+clock. Malformed or zone-less timestamps fail closed. No certificate fetching
+or host-network I/O happens in this library.
+
+The legacy `paypal::verify` remains backward-compatible but proves only signature
+authenticity, **not freshness**. The `fiducia-customer.rs` consumer currently uses
+that legacy API, so this library addition does **not** yet close the deployed
+PayPal replay-window gap. Migrate the consumer only after compatibility review
+and execution of its own integration tests. Continue using durable, digest-bound
+event idempotency with either API; freshness does not replace it. See issue #9.
 
 The `rsa` crate currently carries
 [RUSTSEC-2023-0071](https://rustsec.org/advisories/RUSTSEC-2023-0071.html),
