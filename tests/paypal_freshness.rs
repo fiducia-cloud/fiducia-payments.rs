@@ -24,9 +24,11 @@ fn sign(body: &[u8], timestamp: &str, webhook: &str) -> String {
     base64::engine::general_purpose::STANDARD.encode(signer.sign(msg.as_bytes()).to_bytes())
 }
 
-fn transmission<'a>(timestamp: &'a str, signature: &'a str, cert_url: &'a str)
-    -> paypal::Transmission<'a>
-{
+fn transmission<'a>(
+    timestamp: &'a str,
+    signature: &'a str,
+    cert_url: &'a str,
+) -> paypal::Transmission<'a> {
     paypal::Transmission {
         transmission_id: "transmission-fresh",
         transmission_time: timestamp,
@@ -40,8 +42,13 @@ fn check(timestamp: &str, now: i64, tolerance: u64) -> Result<(), VerifyError> {
     let signature = sign(BODY, timestamp, WEBHOOK);
     paypal::verify_at(
         &transmission(timestamp, &signature, CERT_URL),
-        WEBHOOK, BODY, CERT, now, tolerance,
-    ).map(|event| {
+        WEBHOOK,
+        BODY,
+        CERT,
+        now,
+        tolerance,
+    )
+    .map(|event| {
         assert_eq!(event.provider, Provider::Paypal);
         assert_eq!(event.id, "WH-fresh");
         assert_eq!(event.payload.as_slice(), BODY);
@@ -62,10 +69,7 @@ fn signed_rfc3339_epoch_and_numeric_offset_are_equivalent() {
 
 #[test]
 fn inclusive_replay_window_is_precise_to_one_nanosecond_both_directions() {
-    for exactly_at_edge in [
-        "1970-01-01T00:05:00Z",
-        "1969-12-31T23:55:00Z",
-    ] {
+    for exactly_at_edge in ["1970-01-01T00:05:00Z", "1969-12-31T23:55:00Z"] {
         check(exactly_at_edge, 0, 300).expect("inclusive 300-second edge");
     }
     for one_nanosecond_beyond in [
@@ -74,7 +78,10 @@ fn inclusive_replay_window_is_precise_to_one_nanosecond_both_directions() {
     ] {
         assert!(matches!(
             check(one_nanosecond_beyond, 0, 300),
-            Err(VerifyError::TimestampOutOfTolerance { tolerance_secs: 300, .. })
+            Err(VerifyError::TimestampOutOfTolerance {
+                tolerance_secs: 300,
+                ..
+            })
         ));
     }
     assert!(check("1970-01-01T00:00:00.000000001Z", 0, 0).is_err());
@@ -91,15 +98,22 @@ fn forged_timestamp_invalid_calendar_and_signed_time_tampering_fail_closed() {
     ));
     // A signature over a malformed time must never bypass strict parsing.
     for invalid_time in [
-        "1970-01-01T00:00:00", "1970-01-01T00:00:00Ztrailing",
-        "2026-02-29T00:00:00Z", "1970-01-01T00:00:60Z",
-        "1970-01-01T00:00:00+24:00", "1970-01-01T00:00:00.0000000001Z",
+        "1970-01-01T00:00:00",
+        "1970-01-01T00:00:00Ztrailing",
+        "2026-02-29T00:00:00Z",
+        "1970-01-01T00:00:60Z",
+        "1970-01-01T00:00:00+24:00",
+        "1970-01-01T00:00:00.0000000001Z",
     ] {
         let invalid_signature = sign(BODY, invalid_time, WEBHOOK);
         assert!(matches!(
             paypal::verify_at(
                 &transmission(invalid_time, &invalid_signature, CERT_URL),
-                WEBHOOK, BODY, CERT, 0, 300
+                WEBHOOK,
+                BODY,
+                CERT,
+                0,
+                300
             ),
             Err(VerifyError::InvalidInput(_))
         ));
@@ -150,15 +164,28 @@ fn sixty_four_signed_refinements_require_all_six_authentication_gates() {
         let body = if event_ok { BODY } else { INVALID_EVENT };
         let signed_webhook = if signature_ok { WEBHOOK } else { "WH-OTHER" };
         let good_signature = sign(body, timestamp, signed_webhook);
-        let sig = if envelope_ok { &good_signature } else { "not-base64" };
-        let url = if provenance_ok { CERT_URL } else { "https://paypal.com.evil.test/cert.pem" };
+        let sig = if envelope_ok {
+            &good_signature
+        } else {
+            "not-base64"
+        };
+        let url = if provenance_ok {
+            CERT_URL
+        } else {
+            "https://paypal.com.evil.test/cert.pem"
+        };
         let configured_webhook = if config_ok { WEBHOOK } else { "" };
         let result = paypal::verify_at(
             &transmission(timestamp, sig, url),
-            configured_webhook, body, CERT, 0, 300,
+            configured_webhook,
+            body,
+            CERT,
+            0,
+            300,
         );
         assert_eq!(
-            result.is_ok(), bits == FULL,
+            result.is_ok(),
+            bits == FULL,
             "signed PayPal six-gate mask {bits:#08b}: {result:?}"
         );
         if let Ok(event) = result {
