@@ -17,8 +17,11 @@ fn digits(bytes: &[u8], begin: usize, len: usize) -> Option<i64> {
 
 pub(crate) fn parse_rfc3339_unix_nanos(value: &str) -> Option<i128> {
     let b = value.as_bytes();
-    if b.len() < 20 || b.get(4) != Some(&b'-') || b.get(7) != Some(&b'-')
-        || b.get(10) != Some(&b'T') || b.get(13) != Some(&b':')
+    if b.len() < 20
+        || b.get(4) != Some(&b'-')
+        || b.get(7) != Some(&b'-')
+        || b.get(10) != Some(&b'T')
+        || b.get(13) != Some(&b':')
         || b.get(16) != Some(&b':')
     {
         return None;
@@ -74,7 +77,11 @@ pub(crate) fn parse_rfc3339_unix_nanos(value: &str) -> Option<i128> {
                 return None;
             }
             let offset = oh * 3600 + om * 60;
-            if zone == b'+' { offset } else { -offset }
+            if zone == b'+' {
+                offset
+            } else {
+                -offset
+            }
         }
         _ => return None,
     };
@@ -87,8 +94,8 @@ pub(crate) fn parse_rfc3339_unix_nanos(value: &str) -> Option<i128> {
     let doy = (153 * shifted_month + 2) / 5 + day - 1;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
     let days = era * 146_097 + doe - 719_468;
-    let secs = i128::from(days) * 86_400
-        + i128::from(hour * 3600 + minute * 60 + second - offset_seconds);
+    let secs =
+        i128::from(days) * 86_400 + i128::from(hour * 3600 + minute * 60 + second - offset_seconds);
     Some(secs * NANOS_PER_SECOND + fractional_nanos)
 }
 
@@ -99,29 +106,60 @@ mod tests {
     #[test]
     fn correct_epoch_offsets_fractional_seconds_and_leap_days() {
         assert_eq!(parse_rfc3339_unix_nanos("1970-01-01T00:00:00Z"), Some(0));
-        assert_eq!(parse_rfc3339_unix_nanos("1969-12-31T23:59:59Z"), Some(-1_000_000_000));
-        assert_eq!(parse_rfc3339_unix_nanos("1970-01-01T00:00:00.000000001Z"), Some(1));
-        assert_eq!(parse_rfc3339_unix_nanos("1970-01-01T00:00:00.1Z"), Some(100_000_000));
-        assert_eq!(parse_rfc3339_unix_nanos("1970-01-01T01:30:00+01:30"), Some(0));
-        assert_eq!(parse_rfc3339_unix_nanos("1969-12-31T22:30:00-01:30"), Some(0));
-        assert_eq!(parse_rfc3339_unix_nanos("2000-02-29T00:00:00Z"), Some(951_782_400_000_000_000));
+        assert_eq!(
+            parse_rfc3339_unix_nanos("1969-12-31T23:59:59Z"),
+            Some(-1_000_000_000)
+        );
+        assert_eq!(
+            parse_rfc3339_unix_nanos("1970-01-01T00:00:00.000000001Z"),
+            Some(1)
+        );
+        assert_eq!(
+            parse_rfc3339_unix_nanos("1970-01-01T00:00:00.1Z"),
+            Some(100_000_000)
+        );
+        assert_eq!(
+            parse_rfc3339_unix_nanos("1970-01-01T01:30:00+01:30"),
+            Some(0)
+        );
+        assert_eq!(
+            parse_rfc3339_unix_nanos("1969-12-31T22:30:00-01:30"),
+            Some(0)
+        );
+        assert_eq!(
+            parse_rfc3339_unix_nanos("2000-02-29T00:00:00Z"),
+            Some(951_782_400_000_000_000)
+        );
     }
 
     #[test]
     fn malformed_calendar_zone_and_precision_fail_closed() {
         for bad in [
-            "", "1970-01-01T00:00:00", "1970-01-01t00:00:00Z",
-            "1970-01-01T00:00:00z", "1970-01-01T00:00:00Zgarbage",
-            "1970-01-01T00:00:00+00", "1970-01-01T00:00:00+24:00",
-            "1970-01-01T00:00:00+00:60", "1970-01-01T00:00:00+00:00Z",
-            "1970-01-01T00:00:00.1.0Z", "1970-01-01T00:00:00.Z",
-            "1970-01-01T00:00:00.0000000001Z", "1970-01-01T00:00:60Z",
-            "1900-02-29T00:00:00Z", "2001-02-29T00:00:00Z",
-            "2026-04-31T00:00:00Z", "0000-01-01T00:00:00Z",
-            "10000-01-01T00:00:00Z", "2026-13-01T00:00:00Z",
-            "2026-01-00T00:00:00Z", "2026-01-01T24:00:00Z",
-            "2026-01-01T00:60:00Z", "2026-01-01T00:00:00+0a:00",
-            "2026-01-01T00:00:00+00:0a", "2026-01-01T00:00:00+00:00\n",
+            "",
+            "1970-01-01T00:00:00",
+            "1970-01-01t00:00:00Z",
+            "1970-01-01T00:00:00z",
+            "1970-01-01T00:00:00Zgarbage",
+            "1970-01-01T00:00:00+00",
+            "1970-01-01T00:00:00+24:00",
+            "1970-01-01T00:00:00+00:60",
+            "1970-01-01T00:00:00+00:00Z",
+            "1970-01-01T00:00:00.1.0Z",
+            "1970-01-01T00:00:00.Z",
+            "1970-01-01T00:00:00.0000000001Z",
+            "1970-01-01T00:00:60Z",
+            "1900-02-29T00:00:00Z",
+            "2001-02-29T00:00:00Z",
+            "2026-04-31T00:00:00Z",
+            "0000-01-01T00:00:00Z",
+            "10000-01-01T00:00:00Z",
+            "2026-13-01T00:00:00Z",
+            "2026-01-00T00:00:00Z",
+            "2026-01-01T24:00:00Z",
+            "2026-01-01T00:60:00Z",
+            "2026-01-01T00:00:00+0a:00",
+            "2026-01-01T00:00:00+00:0a",
+            "2026-01-01T00:00:00+00:00\n",
         ] {
             assert_eq!(parse_rfc3339_unix_nanos(bad), None, "must reject {bad:?}");
         }
